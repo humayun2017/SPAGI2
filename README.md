@@ -3,6 +3,10 @@
 SPAGI2: Identification of active signalling pathways for cross-species by integrating gene expression and human protein interaction network
 ===========================================================================================================================================
 
+**Md Humayun Kabir**
+<a href="mailto:humayun.mkabir@gmail.com" class="email">humayun.mkabir@gmail.com</a>;
+<a href="mailto:hkj_cse@ru.ac.bd" class="email">hkj_cse@ru.ac.bd</a>
+
 Introduction
 ------------
 
