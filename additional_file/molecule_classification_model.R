@@ -28,7 +28,7 @@ names(train.data) <- make.names(names(train.data))
 train.data$type <- as.factor(train.data$type)
 table(train.data$type)
 #  1    2    3    4    5 
-#680  636  440  997 2492 
+#672  644  440  997 2492 
 ##
 #####
 
@@ -62,14 +62,14 @@ load("object/top.50.feature.RData")
 ##get the train data with only the top 50 features
 train.data.filtered<-train.data[,c("type",top.50.feature)]
 dim(train.data.filtered)
-#[1] 5245   51
+#[1] 5209   51
 ##
 
 
 ##get the test data with only the top 50 features
 test.data.filtered<-test.data[,c("type",top.50.feature)]
 dim(test.data.filtered)
-#[1] 19939   51
+#[1] 19685   51
 ##
 
 
@@ -83,7 +83,7 @@ length(molecule.ensembl.id)
 ##Now get only the test data without the molecules data types 
 test.data.filtered.clean<-test.data.filtered[(!(rownames(test.data.filtered) %in% molecule.ensembl.id)),]
 dim(test.data.filtered.clean)
-#[1] 17186    51
+#[1] 16935    51
 ##
 
 
@@ -124,7 +124,7 @@ confusionMatrix(p1.selected, train.data.filtered$type)
 p2.selected <- data.frame(predict(rf.selected, test.data.filtered.clean))
 colnames(p2.selected)<-"model_type"
 dim(p2.selected)
-#[1] 17186     1
+#[1] 16935     1
 #combine the model result with the test data
 #p2.selected.result<-cbind(p2.selected, test.data.filtered.clean)
 #p2.selected.result[1:4,1:4]
@@ -150,7 +150,7 @@ load("object/hs.ensembl.symbol.map.RData")
 #first convert the symbol map table with the same sequence as the model result ensembl gene ids
 hs.ensembl.symbol.map.filtered<-hs.ensembl.symbol.map[match(rownames(p2.selected), hs.ensembl.symbol.map$ensembl_gene_id),]
 dim(hs.ensembl.symbol.map.filtered)
-#[1] 17186     2
+#[1] 16935     2
 #now change the rownames of the model result by the filtered symbol map table's external gene name
 rownames(p2.selected)<-hs.ensembl.symbol.map.filtered$external_gene_name
 ##

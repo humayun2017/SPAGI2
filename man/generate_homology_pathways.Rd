@@ -4,12 +4,10 @@
 \alias{generate_homology_pathways}
 \title{generate_homology_pathways}
 \usage{
-generate_homology_pathways(species1 = "hsapiens", species2, pathway.path)
+generate_homology_pathways(species.homology.data, pathway.path)
 }
 \arguments{
-\item{species1}{Species 1 name, in the form 'hsapiens'. Default is ''hsapiens'.}
-
-\item{species2}{Species 2 name, in the form 'hsapiens'.}
+\item{species.homology.data}{A list containing the homology data (i.e., homology table, homology matrix and species2 name) for the two species.}
 
 \item{pathway.path}{A list with human pathway path data where each sublist denotes a path of the pathway. This is used as a background data.}
 }
@@ -20,9 +18,10 @@ This function returns the homology pathways by altering the pathway molecules by
 This function generates homology pathways by altering the molecules of human pathway paths.
 }
 \details{
-This function generates homology pathways by altering the molecules of human pathway paths.
+This function generates homology pathways by altering the molecules of human pathway paths. The human pathway path data is automatically loaded with the package.
 }
 \examples{
-drerio.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "drerio", pathway.path = pathway.path.new)
-drerio.homology.pathway.path[[1]]
+human.zebrafish.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "drerio")
+zebrafish.homology.pathway.path<-generate_homology_pathways(species.homology.data = human.zebrafish.homology.data, pathway.path = pathway.path.new)
+head(zebrafish.homology.pathway.path[[1]])
 }

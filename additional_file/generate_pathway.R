@@ -7,7 +7,7 @@
 #Also create a folder as name "stringdb_human" in the current directory for downloading stringdb files for the human species.
 #First run the "get_ppi_for_molecules_new" function and then follow the code in the main part section.
 #This file generates the pathway path data by using the helping function of the SPAGI package.
-#Finally we will save the 'pathway.path.new' RData in the 'result' subdirectory of the current directory to be used by the SPAGI2 package.
+#Finally we will save the 'pathway.path.2' RData in the 'result' subdirectory of the current directory to be used by the pathway_cleaning.R file.
 ##############
 
 
@@ -20,13 +20,13 @@
 #############Need a folder for downloading stringdb files for the species - stringdb_human
 #############It takes some time to download the data, and then can reuse the downloaded data
 
-#' @title get_ppi_for_molecules
+#' @title get_ppi_for_molecules_new
 #'
 #' @description
 #' This function gets the PPI data from STRINGdb for the protein molecules provided.
 #'
-#' @rdname get_ppi_for_molecules
-#' @name get_ppi_for_molecules
+#' @rdname get_ppi_for_molecules_new
+#' @name get_ppi_for_molecules_new
 #'
 #' @details
 #' This function gets the PPI data from STRINGdb for the protein molecules provided.
@@ -46,7 +46,7 @@
 #' @examples
 #' ## Need a folder at working directory for downloading stringdb files for the species - stringdb_human.
 #' ## It takes some time to download the data, and then can reuse the downloaded data.
-#' ## Here we will use RP.protein, KN.protein, TF.protein protein parameters. These data are automatically loaded with the package. You can modify these parameters.
+#' ## Here we will use RP.protein, KN.protein, TF.protein protein parameters. These data are automatically loaded with the SPAGI package. You can modify these parameters.
 #' ## And we will use the species as "hsapiens" by default.
 #'
 #' ## Now get the filtered PPI for the molecules and the RP and TF proteins of the filtered PPI
@@ -259,9 +259,9 @@ head(summary(hs.ppi.result))
 
 
 #####Generate the pathway path data using the hs.ppi.result and housekeeping.gene data sets
-pathway.path.new<-generate_pathway_path(ppi.result=hs.ppi.result, housekeeping.gene)
-head(summary(pathway.path.new))
-#save(pathway.path.new, file = "result/pathway.path.new.RData")
+pathway.path.2<-generate_pathway_path(ppi.result=hs.ppi.result, housekeeping.gene=housekeeping.gene)
+head(summary(pathway.path.2))
+#save(pathway.path.2, file = "result/pathway.path.2.RData")
 #####
 
 

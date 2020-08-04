@@ -29,7 +29,7 @@ names(genes.go.df) <- make.names(names(genes.go.df))
 genes.go.df$type <- as.factor(genes.go.df$type)
 table(genes.go.df$type)
 #  1    2    3    4    5 
-#680  636  440  997 2492  
+#672  644  440  997 2456  
 
 
 ##Data Partition, training-70% and test-30%
@@ -37,19 +37,19 @@ set.seed(222)
 ind <- sample(2, nrow(genes.go.df), replace = TRUE, prob = c(0.7, 0.3))
 train.genes.go.df <- genes.go.df[ind==1,]
 dim(train.genes.go.df)
-#[1]  3672 12515
+#[1]  3648 12677
 test.genes.go.df <- genes.go.df[ind==2,]
 dim(test.genes.go.df)
-#[1]  1573 12515
+#[1]  1561 12677
 
 
 ##To look at the number of individual pathway molecules 
 table(train.genes.go.df$type)
 #  1    2    3    4    5 
-#483  452  295  683 1759 
+#484  441  304  682 1737 
 table(test.genes.go.df$type)
 #  1   2   3   4   5 
-#197 184 145 314 733
+#188 203 136 315 719
 
 
 ##Random Forest
@@ -64,7 +64,7 @@ initial.rf <- randomForest(type~., data=train.genes.go.df)
 #To check the confusion matrix and OOB estimate of error rate
 initial.rf$confusion
 print(initial.rf)
-#when number of trees is 500 OOB estimate of error rate: 11.74%
+#when number of trees is 500 OOB estimate of error rate: 11.49%
 #we will tune the model by resetting the parameter values and hope able to get some improved results 
 
 
@@ -77,7 +77,7 @@ confusionMatrix(initial.train.prediction, train.genes.go.df$type)
 #Prediction & Confusion Matrix - test data
 initial.test.prediction <- predict(initial.rf, test.genes.go.df)
 confusionMatrix(initial.test.prediction, test.genes.go.df$type)
-##the overall accuracy for train data is 0.9529  and for test data is 0.8938
+##the overall accuracy for train data is 0.9564 and for test data is 0.884
 
 
 #Error rate of Random Forest, from here we will get the 'ntreeTry' parameter value
@@ -87,10 +87,11 @@ plot(initial.rf)
 tune.initial.rf <- tuneRF(train.genes.go.df[,-1], train.genes.go.df[,1],
                           stepFactor = 0.5,
                           plot = TRUE,
-                          ntreeTry = 200,
+                          ntreeTry = 300,
                           trace = TRUE,
                           improve = 0.05)
 
+#Here we can see that when ntreeTry=300 we can get lowest OOB error=11.27% for mtry=224
 #####End of first time running the model
 
 
@@ -98,16 +99,17 @@ tune.initial.rf <- tuneRF(train.genes.go.df[,-1], train.genes.go.df[,1],
 
 
 #####After tuning build and test the model again with the revised parameter values
-#####Here, we can see the improvement of the 
+#####Here, we can see the improvement of the model
 after.tune.rf <- randomForest(type~., data=train.genes.go.df,
-                              ntree = 200,
-                              mtry = 222,
+                              ntree = 300,
+                              mtry = 224,
                               importance = TRUE,
                               proximity = TRUE)
 
 #Now check the confusion matrix and OOB estimate of error rate again 
 after.tune.rf$confusion
 print(after.tune.rf)
+#when number of trees is 300 OOB estimate of error rate: 11.21%
 #
 
 ##Prediction & Confusion Matrix - train data
@@ -119,8 +121,8 @@ confusionMatrix(after.tune.train.prediction, train.genes.go.df$type)
 after.tune.test.prediction <- predict(after.tune.rf, test.genes.go.df)
 confusionMatrix(after.tune.test.prediction, test.genes.go.df$type)
 ##we see that after tuning the overall accuracy of the model is higher than the previous model
-##previously the overall accuracy for train data was 0.9529  and for test data was 0.8938
-##after tuning the overall accuracy for train data is 0.9706 and for test data is 0.897
+##previously the overall accuracy for train data was 0.9564  and for test data was 0.884
+##after tuning the overall accuracy for train data is 0.9707 and for test data is 0.8847
 ##
 
 
@@ -142,7 +144,7 @@ rf.importance.rank.top50<-names(rf.importance.rank[1:50])
 ##get the data frame with only these top 50 features
 genes.go.df.selected<-genes.go.df[,c("type", rf.importance.rank.top50)]
 dim(genes.go.df.selected)
-#[1] 5245   51
+#[1] 5209   51
 ##
 
 
@@ -180,7 +182,7 @@ test.selected.prediction <- predict(rf.selected, test.selected.df)
 confusionMatrix(test.selected.prediction, test.selected.df$type)
 ##
 ###This section for testing of number of times when no seed value is used###
-###!!!For top 50 variable we have got accuracy around 0.90 (0.866 - 0.9104) all times!!!
+###!!!For top 50 variable we have got accuracy around 0.90 (0.8689 - 0.9106) all times!!!
 
 
 

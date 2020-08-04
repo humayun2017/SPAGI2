@@ -12,22 +12,25 @@ SPAGI2 is an R package for cross species active signalling pathway identificatio
 \examples{
 ## Do a sample analysis using mouse embryonic dental epitheliam cell at E13.5 microarray gene expression data.
 
-## Here we will use "pathway.path.new" as background data from the SPAGI2 repository.
+## Here we will use "pathway.path.new" and "rp.median.exp.4" as background data from the SPAGI2 repository.
+## We will also use "housekeeping.gene" as background data from the SPAGI repository.
 ## Also we will use "tooth.epi.E13.5" as query microarray gene expression data. This data is for mouse embryonic dental epitheliam cell at E13.5.
-## These data sets are loaded automatically with the package.
+## These data sets are loaded automatically with the packages SPAGI2 and SPAGI.
 
 ## Pre-process the query data (tooth.epi.E13.5), The data has already been made in normalized and log2 scale format. Here, we will use the expression cutoff as 5.0 of the query data. Also we have already made the replicate names same for the data.
 tooth.epi.E13.5.processed.data<-preprocess_querydata_new(cell.tissue.data = tooth.epi.E13.5, exp.cutoff.th = 5.0, species="mmusculus")
-## Generate the mouse homology pathway path data. Here we will use the background human pathway.path.new data to get the mouse homology pathway path data. It will take little bit more time to access the biomaRt ensembl server.
-mouse.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "mmusculus", pathway.path = pathway.path.new)
-## Identify active pathway paths of the processed query data. Here, we will use the background pathway.path.new data to get the active pathway paths of the processed query data.
-tooth.epi.E13.5.active.pathway<-identify_active_pathway_path(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
-## Get active pathway ranking metric (i.e., activity score and number of downstream transcription factors). Here we will use the tooth.epi.E13.5.active.pathway and tooth.epi.E13.5.processed.data data sets to get the acitve pathway ranking metric. Also we will use a high expression threshold (here we will use 10) for the processed query data.
-tooth.epi.E13.5.active.pathway.ranking.metric<-get_pathway_ranking_metric(active.pathway.path = tooth.epi.E13.5.active.pathway, processed.query.data = tooth.epi.E13.5.processed.data, high.exp.th = 10)
-## Plot the ranking metric result (i.e., activity score and number of downstream transcription factors) in a 2D plane
-display_pathway_ranking_metric(pathway.ranking.metric = tooth.epi.E13.5.active.pathway.ranking.metric)
+## Generate the homology data for the two species - 'hsapiens' and 'mmusculus'. It will take little bit more time to access the biomaRt ensembl server.
+mouse.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "mmusculus")
+## Generate the mouse homology pathway path data. Here we will use the background human pathway.path.new data to get the mouse homology pathway path data.
+mouse.homology.pathway.path<-generate_homology_pathways(species.homology.data = mouse.homology.data, pathway.path = pathway.path.new)
+## Identify active pathway paths of the processed query data. Here, we will use the mouse.homology.pathway.path data to get the active pathway paths of the processed query data.
+tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+## Get pathway activity score (i.e., pathway name gene expression and pathway specific gene count proportion) of the processed query data. This function uses automatically loaded housekeeping gene data from SPAGI package to get the cell/tissue expressed specific pathway gene count proportion.
+tooth.epi.E13.5.active.pathway.score<-get_pathway_activity_score_new(active.pathway.path = tooth.epi.E13.5.active.pathway, processed.query.data = tooth.epi.E13.5.processed.data, homology.data = mouse.homology.data)
+## Plot the pathway activity score result (i.e., pathway name gene expression versus pathway specific gene count proportion) in a 2D plane (black=specifically active, gray=generally active). This function uses generally highly expressed receptor data from the package to separate the cell/tissue specific active pathways and generally active pathways in many cells.
+display_pathway_activity_score(pathway.activity.score = tooth.epi.E13.5.active.pathway.score, homology.data = mouse.homology.data)
 ## To separate the top ranked pathways we can do this
-abline(v=45, h=0.2, lty=2, col="black")
+abline(v=0.2, h=10, lty=2, col="black")
 
 }
 \author{

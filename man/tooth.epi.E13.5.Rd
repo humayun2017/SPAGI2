@@ -21,7 +21,7 @@ The cell has 3 biological replicates.
 head(tooth.epi.E13.5)
 }
 \references{
-Murphy P et al, Development 2018 Jan 9; 145(1)
-(\href{https://www.ncbi.nlm.nih.gov/pubmed/29217756}{PubMed})
+Daniel J O'Connell et al, Science Signaling, 2012 Jan 10;5(206):ra4.
+(\href{https://pubmed.ncbi.nlm.nih.gov/22234613/}{PubMed})
 }
 \keyword{datasets}

@@ -24,7 +24,7 @@ tooth.epi.E13.5.processed.data<-preprocess_querydata_new(cell.tissue.data = toot
 #Generate the mouse homology pathway path data
 mouse.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "mmusculus", pathway.path = pathway.path.new)
 #Identify active pathway paths of the processed query data
-tooth.epi.E13.5.active.pathway<-identify_active_pathway_path(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
 #Generate the active pathway paths data frame
 tooth.epi.E13.5.active.pathway.df<-generate_pathway_ppi_data_frame(active.pathway.path = tooth.epi.E13.5.active.pathway)
 #Now draw the pathways as tree layout in one pdf file

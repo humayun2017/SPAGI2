@@ -13,22 +13,25 @@
 #' @examples
 #' ## Do a sample analysis using mouse embryonic dental epitheliam cell at E13.5 microarray gene expression data.
 #'
-#' ## Here we will use "pathway.path.new" as background data from the SPAGI2 repository.
+#' ## Here we will use "pathway.path.new" and "rp.median.exp.4" as background data from the SPAGI2 repository.
+#' ## We will also use "housekeeping.gene" as background data from the SPAGI repository.
 #' ## Also we will use "tooth.epi.E13.5" as query microarray gene expression data. This data is for mouse embryonic dental epitheliam cell at E13.5.
-#' ## These data sets are loaded automatically with the package.
+#' ## These data sets are loaded automatically with the packages SPAGI2 and SPAGI.
 #'
 #' ## Pre-process the query data (tooth.epi.E13.5), The data has already been made in normalized and log2 scale format. Here, we will use the expression cutoff as 5.0 of the query data. Also we have already made the replicate names same for the data.
 #' tooth.epi.E13.5.processed.data<-preprocess_querydata_new(cell.tissue.data = tooth.epi.E13.5, exp.cutoff.th = 5.0, species="mmusculus")
-#' ## Generate the mouse homology pathway path data. Here we will use the background human pathway.path.new data to get the mouse homology pathway path data. It will take little bit more time to access the biomaRt ensembl server.
-#' mouse.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "mmusculus", pathway.path = pathway.path.new)
-#' ## Identify active pathway paths of the processed query data. Here, we will use the background pathway.path.new data to get the active pathway paths of the processed query data.
-#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
-#' ## Get active pathway ranking metric (i.e., activity score and number of downstream transcription factors). Here we will use the tooth.epi.E13.5.active.pathway and tooth.epi.E13.5.processed.data data sets to get the acitve pathway ranking metric. Also we will use a high expression threshold (here we will use 10) for the processed query data.
-#' tooth.epi.E13.5.active.pathway.ranking.metric<-get_pathway_ranking_metric(active.pathway.path = tooth.epi.E13.5.active.pathway, processed.query.data = tooth.epi.E13.5.processed.data, high.exp.th = 10)
-#' ## Plot the ranking metric result (i.e., activity score and number of downstream transcription factors) in a 2D plane
-#' display_pathway_ranking_metric(pathway.ranking.metric = tooth.epi.E13.5.active.pathway.ranking.metric)
+#' ## Generate the homology data for the two species - 'hsapiens' and 'mmusculus'. It will take little bit more time to access the biomaRt ensembl server.
+#' mouse.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "mmusculus")
+#' ## Generate the mouse homology pathway path data. Here we will use the background human pathway.path.new data to get the mouse homology pathway path data.
+#' mouse.homology.pathway.path<-generate_homology_pathways(species.homology.data = mouse.homology.data, pathway.path = pathway.path.new)
+#' ## Identify active pathway paths of the processed query data. Here, we will use the mouse.homology.pathway.path data to get the active pathway paths of the processed query data.
+#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+#' ## Get pathway activity score (i.e., pathway name gene expression and pathway specific gene count proportion) of the processed query data. This function uses automatically loaded housekeeping gene data from SPAGI package to get the cell/tissue expressed specific pathway gene count proportion.
+#' tooth.epi.E13.5.active.pathway.score<-get_pathway_activity_score_new(active.pathway.path = tooth.epi.E13.5.active.pathway, processed.query.data = tooth.epi.E13.5.processed.data, homology.data = mouse.homology.data)
+#' ## Plot the pathway activity score result (i.e., pathway name gene expression versus pathway specific gene count proportion) in a 2D plane (black=specifically active, gray=generally active). This function uses generally highly expressed receptor data from the package to separate the cell/tissue specific active pathways and generally active pathways in many cells.
+#' display_pathway_activity_score(pathway.activity.score = tooth.epi.E13.5.active.pathway.score, homology.data = mouse.homology.data)
 #' ## To separate the top ranked pathways we can do this
-#' abline(v=45, h=0.2, lty=2, col="black")
+#' abline(v=0.2, h=10, lty=2, col="black")
 #'
 NULL
 ####################
@@ -97,7 +100,7 @@ NULL
 #
 #
 ###########################################
-# SPAGI2 depends on five libraries - biomaRt, slam, data.table, igraph and spagi
+# SPAGI2 depends on seven libraries - biomaRt, slam, fastmatch, data.table, doParallel, igraph and spagi
 # Also to generate the background pathway data it depends on STRINGdb. Make sure you have installed all the packages.
 # To install these libraries execute the following commands:
 #
@@ -108,8 +111,10 @@ NULL
 # BiocManager::install("biomaRt")
 # BiocManager::install("STRINGdb")
 # install.packages("slam")
-# install.packages('data.table')
-# install.packages('igraph')
+# install.packages("fastmatch")
+# install.packages("data.table")
+# install.packages("doParallel")
+# install.packages("igraph")
 #
 # Make sure you have *devtools* installed, then install the *SPAGI* and *SPAGI2* package from github repository:
 # install.packages('devtools')
@@ -120,7 +125,9 @@ NULL
 # library(biomaRt)
 # library(STRINGdb)
 # library(slam)
+# library(fastmatch)
 # library(data.table)
+# library(doParallel)
 # library(igraph)
 # library(spagi)
 # library(spagi2)
@@ -140,7 +147,6 @@ NULL
 #host.ID <- "http://sep2019.archive.ensembl.org"
 ####################
 #######################################################################################
-
 
 
 
@@ -216,6 +222,63 @@ find_supported_datasets <- function(default=TRUE){
   sets <- listDatasets(ensembl)
   organisms <- gsub("([a-z]*)_.*","\\1",sets[,1],"_")
   return(organisms)
+}
+####################
+
+
+
+
+
+
+###########################################################################################################
+## look for the distribution for all cells / tissues based on their replicates' average value
+## this function uses the 'tooth.epi.E13.5' data to test the function that is automatically loaded with the package
+
+#' @title show_distribution
+#'
+#' @description
+#' This function helps to look for the distribution for all cells / tissues based on their replicates' average value.
+#'
+#' @rdname show_distribution
+#' @name show_distribution
+#'
+#' @details
+#' This function helps to look for the distribution for all cells / tissues based on their replicates' average value.
+#'
+#' @return This function displays the distribution of each cell / tissue based on their replicates' average value. It returns null value.
+#'
+#' @param cell.tissue.data An expression matrix with replicated column headers per-replicate. It is assumed that all query data are in RPKM/FPKM/CPM and log normalized form. Also assume that gene ids are official gene symbols. For the matrix, rows denote the genes and the columns denote the cell types or tissues. Duplicate column names are expected in this case denoting replicate samples. All the replicate samples for a specific cell or tissue should have identical column names, otherwise the experiment.descriptor parameter should be used to identify replicate samples of a specific cell type or tissue.
+#' @param data.format Format of cell.tissue.data. Default is "matrix".
+#' @param experiment.descriptor A vector corresponding to the matrix column names of cell.tissue.data, containing the cell type or tissues of each sample. The names should be identical for a specific cell or tissue.  Defaults to NULL.
+#'
+#' @importFrom spagi format_matrix_data compute_mean
+#'
+#' @export
+#'
+#' @examples
+#' show_distribution(cell.tissue.data = tooth.epi.E13.5)
+#' abline(v=5,col="red")
+
+show_distribution<-function(cell.tissue.data, data.format = "matrix", experiment.descriptor = NULL){
+  if(data.format=="matrix"){
+    #calculate average value for each gene based on replicates for each cell type /tissue
+    if(is.null(experiment.descriptor)) experiment.descriptor<-colnames(cell.tissue.data)
+    cell.data.formatted<-format_matrix_data(cell.tissue.data, experiment.descriptor)
+
+    #show the distribution for each cell/tissue based on average value of the replicates
+    cell.tissue.names<-colnames(cell.data.formatted)
+    for(i in 1:ncol(cell.data.formatted)){
+      title.text<-paste("Distribution of", cell.tissue.names[i], sep = " ")
+      devAskNewPage(ask = FALSE) #to turn off the "Hit <Return> to see next plot" prompt
+      hist(cell.data.formatted[,i], breaks=100, main=title.text, xlim=c(0,15), ylim=c(0,2000),
+           xlab = "Expression value", ylab = "# of genes",  col="grey")
+      #Sys.sleep(1)
+    }
+    return(NULL)
+  }else{
+    print("ERROR: could not support other data format at this moment!!")
+    return(NULL)
+  }
 }
 ####################
 
@@ -338,7 +401,6 @@ convert_geneID_to_geneSymbol <- function(user.cell.data, species="hsapiens", gen
   return(user.cell.data.clean)
 }
 ####################
-
 
 
 
@@ -646,6 +708,56 @@ get_homology_matrix_new <- function(species1, species2, homology.table, seq.iden
 
 
 #######################################################################################################
+##Generate homology table and matrix for all ensembl genes of two species
+
+#' @title generate_homology_data
+#'
+#' @description
+#' This function generates homology table and matrix for all ensembl genes of two species.
+#'
+#' @rdname generate_homology_data
+#' @name generate_homology_data
+#'
+#' @details
+#' This function generates homology table and matrix for all ensembl genes of two species.
+#' @return This function returns a list containing the homology table and matrix of the two species.
+#'
+#' @param species1 Species 1 name, in the form 'hsapiens'. Default is 'hsapiens'.
+#' @param species2 Species 2 name, in the form 'hsapiens'
+#'
+#' @export
+#'
+#' @examples
+#' human.zebrafish.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "drerio")
+#' summary(human.zebrafish.homology.data)
+
+generate_homology_data<-function(species1 = "hsapiens", species2){
+  #create a list for homology data
+  species.homology.data<-list()
+  #check for same species and if same species then simply return the 'pathway.path' as 'homology.pathway'
+  if(species1==species2){
+    species.homology.data[["species.homology.table"]]<-NULL
+    species.homology.data[["species.homology.matix"]]<-NULL
+    species.homology.data[["species"]]<-species1
+  }else{
+    #get the homology table for the species
+    species.homology.table<-get_homology_table_new(species1, species2)
+    #get the homology matrix for the species
+    species.homology.matix <- get_homology_matrix_new(species1, species2, species.homology.table)
+    species.homology.data[["species.homology.table"]]<-species.homology.table
+    species.homology.data[["species.homology.matix"]]<-species.homology.matix
+    species.homology.data[["species"]]<-species2
+  }
+  return(species.homology.data)
+}
+####################
+
+
+
+
+
+
+#######################################################################################################
 ##Generate the pathway molecule homology table for the two species with respect to the list of molecules of species1
 
 #' @title generate_pathway_molecule_homology_table
@@ -660,23 +772,22 @@ get_homology_matrix_new <- function(species1, species2, homology.table, seq.iden
 #' This function creates a pathway molecule homology table for the two species with respect to the list of molecules of species1 by retrieving the homology table.
 #' @return This function returns a homology table for the list of molecules of species1 of the two species.
 #'
-#' @param species1 Species 1 name, in the form 'hsapiens'
-#' @param species2 Species 2 name, in the form 'hsapiens'
+#' @param species.homology.data A list containing the homology data (i.e., homology table, homology matrix and species2 name) for the two species.
 #' @param species1.pathway.molecule A vector of pathway molecules for species1
 #'
 #' @export
 #'
 #' @examples
+#' human.zebrafish.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "drerio")
 #' human.genes<-c("PAX6", "SOX2", "PROX1", "FGFR1", "BMP7", "MAPK1", "ACE2")
-#' human.zebrafish.selected.genes.homology.table<-generate_pathway_molecule_homology_table(species1 = "hsapiens", species2 = "drerio", species1.pathway.molecule = human.genes)
+#' human.zebrafish.selected.genes.homology.table<-generate_pathway_molecule_homology_table(species.homology.data = human.zebrafish.homology.data, species1.pathway.molecule = human.genes)
 #' human.zebrafish.selected.genes.homology.table
 
-generate_pathway_molecule_homology_table<-function(species1 = "hsapiens", species2, species1.pathway.molecule){
+generate_pathway_molecule_homology_table<-function(species.homology.data, species1.pathway.molecule){
   #get the homology table for the species
-  species.homology.table<-get_homology_table_new(species1, species2)
+  species.homology.table<-species.homology.data[[1]]
   #get the homology matrix for the species
-  #species.homology.matix <- get_homology_matrix(species1, species2)
-  species.homology.matix <- get_homology_matrix_new(species1, species2, species.homology.table)
+  species.homology.matix<-species.homology.data[[2]]
   #get only the species1 pathway molecules that are exist in the homology matrix
   species1.pathway.molecule.filter<-unique(as.character(species1.pathway.molecule[species1.pathway.molecule%in%rownames(species.homology.matix)]))
   #get the pathway homology molecules for the species2 from the homology matrix
@@ -772,7 +883,7 @@ alter_pathway_names<-function(homology.table, human.pathway){
 #' @param homology.table Homology table for the pathway molecules of the two species - species1 and species2
 #' @param human.pathway A list with human pathway path data where each sublist denotes a path of the pathway. This is used as background data.
 #'
-#' @importFrom data.table chmatch
+#' @importFrom fastmatch fin
 #'
 #' @export
 #'
@@ -795,13 +906,15 @@ alter_pathway_elements<-function(homology.table, human.pathway){
 
   #next check and replace each pathway path elements
   homology.pathway<-list()
-  homology.table.human.molecule<-sort(unique(as.vector(homology.table[[1]])))
+  #homology.table.human.molecule<-sort(unique(as.vector(homology.table[[1]])))
+  homology.table.human.molecule<-unique(as.vector(homology.table[[1]]))
   human.pathway.update.name<-names(human.pathway.update)
   for(i in 1:length(human.pathway.update)){
     each.pathway<-human.pathway.update[[i]]
     individual.path.update<-lapply(each.pathway, function(x){
       #for taking only the path where all molecules are present in the data frame human molecules
-      if(!(anyNA(chmatch(x, homology.table.human.molecule)))){
+      #if(!(anyNA(chmatch(x, homology.table.human.molecule)))){
+      if(all(x %fin% homology.table.human.molecule)){ #when x has small number of elements it is fast enough
         individual.path.elem.update<-lapply(x, function(z){
           z<-as.vector(homology.table[[2]][which(z==as.vector(homology.table[[1]]))])
           return(z)
@@ -928,22 +1041,22 @@ alter_pathway_elements<-function(homology.table, human.pathway){
 #' @name generate_homology_pathways
 #'
 #' @details
-#' This function generates homology pathways by altering the molecules of human pathway paths.
+#' This function generates homology pathways by altering the molecules of human pathway paths. The human pathway path data is automatically loaded with the package.
 #' @return This function returns the homology pathways by altering the pathway molecules by the homology molecules.
 #'
-#' @param species1 Species 1 name, in the form 'hsapiens'. Default is ''hsapiens'.
-#' @param species2 Species 2 name, in the form 'hsapiens'.
+#' @param species.homology.data A list containing the homology data (i.e., homology table, homology matrix and species2 name) for the two species.
 #' @param pathway.path A list with human pathway path data where each sublist denotes a path of the pathway. This is used as a background data.
 #'
 #' @export
 #'
 #' @examples
-#' drerio.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "drerio", pathway.path = pathway.path.new)
-#' drerio.homology.pathway.path[[1]]
+#' human.zebrafish.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "drerio")
+#' zebrafish.homology.pathway.path<-generate_homology_pathways(species.homology.data = human.zebrafish.homology.data, pathway.path = pathway.path.new)
+#' head(zebrafish.homology.pathway.path[[1]])
 
-generate_homology_pathways<-function(species1 = "hsapiens", species2, pathway.path){
+generate_homology_pathways<-function(species.homology.data, pathway.path){
   #check for same species and if same species then simply return the 'pathway.path' as 'homology.pathway'
-  if(species1==species2){
+  if(species.homology.data$species=="hsapiens"){
     homology.pathway<-pathway.path
     return(homology.pathway)
   }else{
@@ -951,7 +1064,7 @@ generate_homology_pathways<-function(species1 = "hsapiens", species2, pathway.pa
     human.pathway.molecules<-unique(as.vector(unlist(pathway.path)))
 
     #generate the pathway molecule homology table for the two species with respect to the list of molecules of species1
-    pathway.molecules.homology.table<-generate_pathway_molecule_homology_table(species1 = "hsapiens", species2 = species2, species1.pathway.molecule = human.pathway.molecules)
+    pathway.molecules.homology.table<-generate_pathway_molecule_homology_table(species.homology.data = species.homology.data, species1.pathway.molecule = human.pathway.molecules)
 
     #generate human pathway elements by homology molecules
     homology.pathway<-alter_pathway_elements(homology.table = pathway.molecules.homology.table, human.pathway = pathway.path)
@@ -966,58 +1079,96 @@ generate_homology_pathways<-function(species1 = "hsapiens", species2, pathway.pa
 
 
 
+###########################################################################################
+# identify active pathway path for RNA-seq gene expression profile
+# generate a list of pathways where each sublist denote a path of the pathway
 
-###########################################################################################################
-## look for the distribution for all cells / tissues based on their replicates' average value
-## this function uses the 'tooth.epi.E13.5' data to test the function that is automatically loaded with the package
-
-#' @title show_distribution
+#' @title identify_active_pathway_path_new
 #'
 #' @description
-#' This function helps to look for the distribution for all cells / tissues based on their replicates' average value.
+#' This function identifies active pathway paths for RNA-seq gene expression profile. It utilizes background pathway path data to identify the active pathway paths.
 #'
-#' @rdname show_distribution
-#' @name show_distribution
+#' @rdname identify_active_pathway_path_new
+#' @name identify_active_pathway_path_new
 #'
 #' @details
-#' This function helps to look for the distribution for all cells / tissues based on their replicates' average value.
+#' This function identifies active pathway paths for RNA-seq gene expression profile. It utilizes background pathway path data to identify the active pathway paths.
 #'
-#' @return This function displays the distribution of each cell / tissue based on their replicates' average value. It returns null value.
+#' @return This function returns a list of pathways where each sublist denote a path of the pathway.
 #'
-#' @param cell.tissue.data An expression matrix with replicated column headers per-replicate. It is assumed that all query data are in RPKM/FPKM/CPM and log normalized form. Also assume that gene ids are official gene symbols. For the matrix, rows denote the genes and the columns denote the cell types or tissues. Duplicate column names are expected in this case denoting replicate samples. All the replicate samples for a specific cell or tissue should have identical column names, otherwise the experiment.descriptor parameter should be used to identify replicate samples of a specific cell type or tissue.
-#' @param data.format Format of cell.tissue.data. Default is "matrix".
-#' @param experiment.descriptor A vector corresponding to the matrix column names of cell.tissue.data, containing the cell type or tissues of each sample. The names should be identical for a specific cell or tissue.  Defaults to NULL.
+#' @param pathway.path A list with pathway path data where each sublist denotes a path of the pathway. This is used as background data.
+#' @param processed.query.data A list with expressed query data where each sublist corresponds for each cell/tissue type.
 #'
-#' @importFrom spagi format_matrix_data compute_mean
+#' @importFrom fastmatch fin
 #'
 #' @export
 #'
 #' @examples
-#' show_distribution(cell.tissue.data = tooth.epi.E13.5)
-#' abline(v=5,col="red")
+#' #Pre-process the 'tooth.epi.E13.5' data
+#' tooth.epi.E13.5.processed.data<-preprocess_querydata_new(cell.tissue.data = tooth.epi.E13.5, exp.cutoff.th = 5.0, species="mmusculus")
+#' #Generate the homology data for the two species - 'hsapiens' and 'mmusculus'
+#' mouse.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "mmusculus")
+#' #Generate the mouse homology pathway path data
+#' mouse.homology.pathway.path<-generate_homology_pathways(species.homology.data = mouse.homology.data, pathway.path = pathway.path.new)
+#' #Identify active pathway paths of the processed query data
+#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+#' head(summary(tooth.epi.E13.5.active.pathway$E13.5_Epi))
+#'
 
-show_distribution<-function(cell.tissue.data, data.format = "matrix", experiment.descriptor = NULL){
-  if(data.format=="matrix"){
-    #calculate average value for each gene based on replicates for each cell type /tissue
-    if(is.null(experiment.descriptor)) experiment.descriptor<-colnames(cell.tissue.data)
-    cell.data.formatted<-format_matrix_data(cell.tissue.data, experiment.descriptor)
+identify_active_pathway_path_new<-function(pathway.path, processed.query.data){
+  #get all the unique pathway path genes
+  pathway.path.gene<-unique(unlist(pathway.path, use.names = FALSE))
 
-    #show the distribution for each cell/tissue based on average value of the replicates
-    cell.tissue.names<-colnames(cell.data.formatted)
-    for(i in 1:ncol(cell.data.formatted)){
-      title.text<-paste("Distribution of", cell.tissue.names[i], sep = " ")
-      hist(cell.data.formatted[,i], breaks=100, main=title.text, xlim=c(0,20), ylim=c(0,3000),
-           xlab = "Expression value", ylab = "# of genes",  col="grey")
-      Sys.sleep(1)
-    }
-    return(NULL)
-  }else{
-    print("ERROR: could not support other data format at this moment!!")
-    return(NULL)
+
+  ##for parallel processing
+  #library(doParallel)
+  no_cores <- detectCores()
+  cl <- makeCluster(no_cores)
+  registerDoParallel(cl)
+  ##
+
+
+  ##process separately each cell or tissue type in each iteration
+  active_pathway_path<-foreach(i=1:length(processed.query.data), .packages = "fastmatch", .final = function(xx) setNames(xx, names(processed.query.data))) %dopar% {
+    #get the pathway path genes that are expressed in the cell or tissue
+    pathway.gene.expressed.in.cell<-intersect(pathway.path.gene, names(processed.query.data[[i]]))
+
+
+    ##get the pathway paths in which all elements are expressed in query input data (i.e., in pathway.gene.expressed.in.cell)
+    pathway.path.exist<-lapply(pathway.path, function(y){
+      tmp.path.exist<-lapply(y, function(x){
+        #for taking only the path where all molecules are expressed in gene expression data
+        if(all(x %fin% pathway.gene.expressed.in.cell)){ #when x has small number of elements it is fast enough
+          return(x)
+        }
+      })
+      return(tmp.path.exist)
+    })
+    ##
+
+
+    ##take only the existing pathway paths without null paths
+    pathway.path.exist.clean<-lapply(pathway.path.exist, function(x){
+      return(x[!(sapply(x, is.null))])
+    })
+    ##
+
+
+    #filter and then return only the pathways that have at least one path
+    return(pathway.path.exist.clean[lengths(pathway.path.exist.clean) > 0])
   }
+  ##
+
+
+  #now stop the cluster
+  stopCluster(cl)
+
+
+  #Finally return the whole result for active pathway path of every cell/tissue
+  #by removing the cells / tissues that have no active pathways
+  return(active_pathway_path[lengths(active_pathway_path) > 0])
 }
 ####################
-
 
 
 
@@ -1049,7 +1200,7 @@ show_distribution<-function(cell.tissue.data, data.format = "matrix", experiment
 #' #Generate the mouse homology pathway path data
 #' mouse.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "mmusculus", pathway.path = pathway.path.new)
 #' #Identify active pathway paths of the processed query data
-#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
 #' #Generate the active pathway paths data frame
 #' tooth.epi.E13.5.active.pathway.df<-generate_pathway_ppi_data_frame(active.pathway.path = tooth.epi.E13.5.active.pathway)
 #' tooth.epi.E13.5.active.pathway.df[[1]][1]
@@ -1150,7 +1301,7 @@ generate_pathway_ppi_data_frame<-function(active.pathway.path){
 #' #Generate the mouse homology pathway path data
 #' mouse.homology.pathway.path<-generate_homology_pathways(species1 = "hsapiens", species2 = "mmusculus", pathway.path = pathway.path.new)
 #' #Identify active pathway paths of the processed query data
-#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
 #' #Generate the active pathway paths data frame
 #' tooth.epi.E13.5.active.pathway.df<-generate_pathway_ppi_data_frame(active.pathway.path = tooth.epi.E13.5.active.pathway)
 #' #Now draw the pathways as tree layout in one pdf file
@@ -1188,6 +1339,248 @@ draw_active_pathways<-function(active.pathway.ppi.data.frame){
 
 
 
+
+
+
+#######################################################################################################
+##Generate the homology gene set for species2 with respect to the list of genes of species1
+
+#' @title generate_homology_gene_set
+#'
+#' @description
+#' This function generates the homology gene set for species2 with respect to the list of genes of species1.
+#'
+#' @rdname generate_homology_gene_set
+#' @name generate_homology_gene_set
+#'
+#' @details
+#' This function generates the homology gene set for species2 with respect to the list of genes of species1.
+#' @return This function returns a vector of homology gene set for species2 with respect to the list of genes of species1.
+#'
+#' @param species.homology.matix A sparse matrix containing the homology genes information for the two species.
+#' @param species1.genes A vector containing set of genes for species1.
+#'
+#' @export
+#'
+#' @examples
+#' human.zebrafish.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "drerio")
+#' human.genes<-c("PAX6", "SOX2", "PROX1", "FGFR1", "BMP7", "MAPK1", "ACE2")
+#' zebrafish.selected.homology.genes<-generate_homology_gene_set(species.homology.matix = human.zebrafish.homology.data[[2]], species1.genes = human.genes)
+#' zebrafish.selected.homology.genes
+
+generate_homology_gene_set<-function(species.homology.matix, species1.genes){
+  #get only the species1 pathway molecules that are exist in the homology matrix
+  species1.genes.filter<-unique(as.character(species1.genes[species1.genes %in% rownames(species.homology.matix)]))
+  #get the homology genes for the species2 from the homology matrix
+  species2.genes<-colnames(species.homology.matix)[which(col_sums(species.homology.matix[species1.genes.filter,,drop=FALSE])>0)]
+  return(species2.genes)
+}
+####################
+
+
+
+
+
+
+##########################################################################################################
+# rank the active pathways based on their pathway name gene expression versus pathway expressed specific gene count proportion
+# generate a list of pathways' activity score where each sublist corresponds for each cell/tissue type
+
+#' @title get_pathway_activity_score_new
+#'
+#' @description
+#' This function generates pathway activity score (i.e., pathway name gene expression versus pathway expressed specific gene count proportion) of the active pathways for each cell/tissue type. It uses active pathway path and processed query data with the homology information to generate the activity score. It also uses housekeeping gene data from SPAGI package to get the cell/tissue expressed specific pathway gene count proportion.
+#'
+#' @rdname get_pathway_activity_score_new
+#' @name get_pathway_activity_score_new
+#'
+#' @details
+#' This function generates pathway activity score (i.e., pathway name gene expression versus pathway expressed specific gene count proportion) of the active pathways for each cell/tissue type. It uses active pathway path and processed query data with the homology information to generate the activity score. It also uses housekeeping gene data from SPAGI package to get the cell/tissue expressed specific pathway gene count proportion.
+#'
+#' @return This function returns a list of pathway activity score for each cell/tissue type.
+#'
+#' @param active.pathway.path A list of active pathway path data for each cell/tissue type as returned by the function 'identify_active_pathway_path'.
+#' @param processed.query.data A list with expressed query data where each sublist corresponds for each cell/tissue type as returned by the function 'preprocess_querydata'.
+#' @param homology.data A list containing the homology data (i.e., homology table, homology matrix and species2 name) for the two species.
+#' @param hk.gene A vector consisting of housekeeping genes. Default is housekeeping.gene. This data is loaded automatically with the SPAGI package. This data was generated using the gene expression profiles of different cell types and/or tissues from the ENCODE human and mouse project.
+#'
+#' @export
+#'
+#' @examples
+#' #Pre-process the 'tooth.epi.E13.5' data
+#' tooth.epi.E13.5.processed.data<-preprocess_querydata_new(cell.tissue.data = tooth.epi.E13.5, exp.cutoff.th = 5.0, species="mmusculus")
+#' #Generate the homology data for the two species - 'hsapiens' and 'mmusculus'
+#' mouse.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "mmusculus")
+#' #Generate the mouse homology pathway path data
+#' mouse.homology.pathway.path<-generate_homology_pathways(species.homology.data = mouse.homology.data, pathway.path = pathway.path.new)
+#' #Identify active pathway paths of the processed query data
+#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+#' #Get pathway activity score (i.e., pathway name gene expression and pathway specific gene count proportion) of the processed query data
+#' tooth.epi.E13.5.active.pathway.score<-get_pathway_activity_score_new(active.pathway.path = tooth.epi.E13.5.active.pathway, processed.query.data = tooth.epi.E13.5.processed.data, homology.data = mouse.homology.data)
+#' head(summary(tooth.epi.E13.5.active.pathway.score$E13.5_Epi))
+#'
+
+get_pathway_activity_score_new<-function(active.pathway.path, processed.query.data, homology.data, hk.gene = housekeeping.gene){
+  ##first check for species, if species='hsapiens', keep the housekeeping genes as it was, otherwise get homology housekeeping genes
+  if(homology.data$species=="hsapiens"){
+    homology.hk.gene<-hk.gene
+  }else{
+    homology.hk.gene<-generate_homology_gene_set(homology.data[[2]], hk.gene)
+  }
+  ##
+
+
+  ##process separately each cell/tissue to get active pathway ranking metric
+  cell.pathway.activity.score<-list()
+  pathway.activity.score<-list()
+  for(i in 1:length(active.pathway.path)){
+    #get each cell/tissue active pathway paths
+    each.cell.active.pathway.path<-active.pathway.path[[i]]
+
+    #take the cell/tissue name from the pathway to get that cell/tissue processed.query.data
+    tmp.cell.name<-names(active.pathway.path[i])
+
+    #take the respective cell/tissue processed data
+    tmp.cell.processed.data<-processed.query.data[[tmp.cell.name]]
+
+
+    ##get 1st metric - expression for the pathway name genes, i.e., expression of the receptors for the cell/tissue
+    #get the names of all pathways for the cell/tissue
+    each.cell.active.pathway.names<-names(each.cell.active.pathway.path)
+    #get the expression of all active pathway names for the cell/tissue
+    tmp.pathway.genes.exp<-tmp.cell.processed.data[each.cell.active.pathway.names]
+    #assign expression for the active pathway genes
+    pathway.activity.score[["pathway.name.gene.exp"]]<-tmp.pathway.genes.exp
+    ##
+
+
+    ##get 2nd metric - specifically expressed genes count proportion for each pathway for the cell/tissue
+    pathway.path.specific.gene.count.proportion<-lapply(each.cell.active.pathway.path, function(y){
+      #get each pathway specifically expressed unique set of genes that are not present in the housekeeping genes
+      tmp.pathway.spec.genes<-setdiff(unique(unlist(y)), homology.hk.gene)
+      #calcaulate top expressed gene count proportion for each pathway and return
+      return(length(tmp.pathway.spec.genes) / length(unique(unlist(y))))
+    })
+    #assign pathway expressed specific gene count proportion
+    pathway.activity.score[["pathway.spec.gene.cout.prop"]]<-unlist(pathway.path.specific.gene.count.proportion)
+    ##
+
+
+    #now assign pathways RP expression and specifically expressed gene count proportion for each cell/tissue
+    cell.pathway.activity.score[[tmp.cell.name]]<-pathway.activity.score
+  }
+  ##
+
+
+  #return pathways activity score for all cell/tissue
+  return(cell.pathway.activity.score)
+}
+####################
+
+
+
+
+
+
+################################################################################################
+# plot the pathway activity score values in a 2D plane for each cell type or tissue
+
+#' @title display_pathway_activity_score
+#'
+#' @description
+#' This function plots the pathway activity score values for each cell type or tissue in a 2D plane. This function uses generally highly expressed receptor data from the package to separate the cell/tissue specific active pathways and generally active pathways in many cells. In the figure, the black and gray colours represent cell/tissue specifically active pathways and generally active pathways in many cells respectively.
+#'
+#' @rdname display_pathway_activity_score
+#' @name display_pathway_activity_score
+#'
+#' @details
+#' This function plots the pathway activity score values for each cell type or tissue in a 2D plane. This function uses generally highly expressed receptor data from the package to separate the cell/tissue specific active pathways and generally active pathways in many cells. In the figure, the black and gray colours represent cell/tissue specifically active pathways and generally active pathways in many cells respectively.
+#'
+#' @return NULL
+#'
+#' @param pathway.activity.score The ranking metric result returned by 'get_pathway_ranking_metric' function.
+#' @param homology.data A list containing the homology data (i.e., homology table, homology matrix and species2 name) for the two species.
+#' @param highly.expressed.rp A vector containing a list of receptor proteins that are generally highly expressed in many cells and/or tissues. Default is rp.median.exp.4.
+#' @param rp.expression.range A vector containing an expression range (in the format of c(min, max)) of the receptor proteins to show at the y axis.
+#'
+#' @export
+#'
+#' @examples
+#' #Pre-process the 'tooth.epi.E13.5' data
+#' tooth.epi.E13.5.processed.data<-preprocess_querydata_new(cell.tissue.data = tooth.epi.E13.5, exp.cutoff.th = 5.0, species="mmusculus")
+#' #Generate the homology data for the two species - 'hsapiens' and 'mmusculus'
+#' mouse.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "mmusculus")
+#' #Generate the mouse homology pathway path data
+#' mouse.homology.pathway.path<-generate_homology_pathways(species.homology.data = mouse.homology.data, pathway.path = pathway.path.new)
+#' #Identify active pathway paths of the processed query data
+#' tooth.epi.E13.5.active.pathway<-identify_active_pathway_path_new(pathway.path = mouse.homology.pathway.path, processed.query.data = tooth.epi.E13.5.processed.data)
+#' #Get pathway activity score (i.e., pathway name gene expression and pathway specific gene count proportion) of the processed query data
+#' tooth.epi.E13.5.active.pathway.score<-get_pathway_activity_score_new(active.pathway.path = tooth.epi.E13.5.active.pathway, processed.query.data = tooth.epi.E13.5.processed.data, homology.data = mouse.homology.data)
+#' #Plot the activity score result (i.e., pathway name gene expression versus pathway specific gene count proportion) in a 2D plane (black=specifically active, gray=generally active)
+#' display_pathway_activity_score(pathway.activity.score = tooth.epi.E13.5.active.pathway.score, homology.data = mouse.homology.data)
+#' #To separate the top ranked pathways we can do this
+#' abline(v=0.2, h=10, lty=2, col="black")
+#'
+
+display_pathway_activity_score<-function(pathway.activity.score, homology.data, highly.expressed.rp = rp.median.exp.4, rp.expression.range = c(5,15)){
+  ##first check for species, if species='hsapiens', keep the highly.expressed.rp as it was, otherwise get homology housekeeping genes
+  if(homology.data$species=="hsapiens"){
+    homology.highly.expressed.rp<-highly.expressed.rp
+  }else{
+    homology.highly.expressed.rp<-generate_homology_gene_set(homology.data[[2]], highly.expressed.rp)
+  }
+
+
+  ##in each loop, the result of one query cell/tissue type is processed and plotted in a 2D plane
+  for(i in 1:length(pathway.activity.score)){
+    #get the name of each cell type
+    cell.tissue.names<-names(pathway.activity.score)[i]
+
+
+    #for setting the title
+    if(nchar(cell.tissue.names)>40){
+      title<-paste("The result of:\n", cell.tissue.names, sep = " ")
+    }
+    else{
+      title<-paste("The result of", cell.tissue.names, sep = " ")
+    }
+
+
+    #first take the pathway names for each cell/tissue
+    tmp.pathway.names<-names(pathway.activity.score[[i]]$pathway.spec.gene.cout.prop)
+    #get the generally higly expressed rp indices
+    tmp.highly.expressed.rp.ind<-which(tmp.pathway.names %in% homology.highly.expressed.rp)
+    #get the specifically expressed rp indices
+    tmp.specifically.expressed.rp.ind<-which(!(tmp.pathway.names %in% homology.highly.expressed.rp))
+
+    devAskNewPage(ask = FALSE) #to turn off the "Hit <Return> to see next plot" prompt
+
+    #plot the result in a 2D plane - specific gene count proportion in x axis and RP expression in y axis
+    plot(pathway.activity.score[[i]]$pathway.spec.gene.cout.prop, pathway.activity.score[[i]]$pathway.name.gene.exp,
+         xlim = c(0,1), ylim = rp.expression.range, type= "n", bty="n", main = title,
+         #xlim = c(0,1), ylim = c(2,10), type= "n", bty="n", main = title,
+         #xlim = c(0,1), ylim = c(3,15), type= "n", bty="n", main = title,
+         xlab = "Pathway expressed specific gene count proportion", ylab = "Pathway name gene expression")
+    #print the specifically active pathway names with black colour
+    #check for non-zero length tmp.specifically.expressed.rp.ind first and then text - when all rps are highly expressed
+    if(length(tmp.specifically.expressed.rp.ind) != 0){
+      text(pathway.activity.score[[i]]$pathway.spec.gene.cout.prop[tmp.specifically.expressed.rp.ind], pathway.activity.score[[i]]$pathway.name.gene.exp[tmp.specifically.expressed.rp.ind],
+           tmp.pathway.names[tmp.specifically.expressed.rp.ind], cex = 0.5, col ="black")
+    }
+    #print the generally highly expressed active pathway names with gray colour
+    #check for non-zero length tmp.highly.expressed.rp.ind first and then text - when all rps are specifically expressed
+    if(length(tmp.highly.expressed.rp.ind) != 0){
+      text(pathway.activity.score[[i]]$pathway.spec.gene.cout.prop[tmp.highly.expressed.rp.ind], pathway.activity.score[[i]]$pathway.name.gene.exp[tmp.highly.expressed.rp.ind],
+           tmp.pathway.names[tmp.highly.expressed.rp.ind], cex = 0.5, col ="gray")
+    }
+
+
+    #for console message for each cell/tissue type ploting
+    consol.msg<-paste(cell.tissue.names, "-- result plotting done!!", sep = " ")
+    print(consol.msg)
+  }
+}
+####################
 
 
 

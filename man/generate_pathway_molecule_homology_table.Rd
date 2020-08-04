@@ -5,15 +5,12 @@
 \title{generate_pathway_molecule_homology_table}
 \usage{
 generate_pathway_molecule_homology_table(
-  species1 = "hsapiens",
-  species2,
+  species.homology.data,
   species1.pathway.molecule
 )
 }
 \arguments{
-\item{species1}{Species 1 name, in the form 'hsapiens'}
-
-\item{species2}{Species 2 name, in the form 'hsapiens'}
+\item{species.homology.data}{A list containing the homology data (i.e., homology table, homology matrix and species2 name) for the two species.}
 
 \item{species1.pathway.molecule}{A vector of pathway molecules for species1}
 }
@@ -27,7 +24,8 @@ This function creates a pathway molecule homology table for the two species with
 This function creates a pathway molecule homology table for the two species with respect to the list of molecules of species1 by retrieving the homology table.
 }
 \examples{
+human.zebrafish.homology.data<-generate_homology_data(species1 = "hsapiens", species2 = "drerio")
 human.genes<-c("PAX6", "SOX2", "PROX1", "FGFR1", "BMP7", "MAPK1", "ACE2")
-human.zebrafish.selected.genes.homology.table<-generate_pathway_molecule_homology_table(species1 = "hsapiens", species2 = "drerio", species1.pathway.molecule = human.genes)
+human.zebrafish.selected.genes.homology.table<-generate_pathway_molecule_homology_table(species.homology.data = human.zebrafish.homology.data, species1.pathway.molecule = human.genes)
 human.zebrafish.selected.genes.homology.table
 }

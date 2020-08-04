@@ -28,9 +28,9 @@ require(biomaRt)
 ##When Ensembl move servers (rarely) or it is down (less rare) these variable may need to be changed, 
 ##for example to an archived version
 biomart.ID <- "ENSEMBL_MART_ENSEMBL"
-host.ID <-  "www.ensembl.org"
+#host.ID <-  "www.ensembl.org"
 #host.ID <- "asia.ensembl.org"
-#host.ID <- "http://sep2019.archive.ensembl.org"
+host.ID <- "http://sep2019.archive.ensembl.org"
 #####
 
 
@@ -323,6 +323,7 @@ pathway.random.gene.type<-combine_pathway_random_genes(molecule.type, hs.ensembl
 genes.go.mat<-get_genes_go_matrix(pathway.random.gene.type)
 dim(genes.go.mat)
 #[1]  5245 12515
+#[1]  5209 12677 with archived one
 length(which(genes.go.mat[1,]==1))
 #[1] 15
 #save(genes.go.mat, file = "result/genes.go.mat.RData")
@@ -338,6 +339,7 @@ names(hs.all.gene)<-hs.ensembl.gene
 hs.all.gene.go.mat<-get_genes_go_matrix(hs.all.gene)
 dim(hs.all.gene.go.mat)
 #[1] 19939 18428
+#[1] 19685 18398 with archived one
 #save(hs.all.gene.go.mat, file = "result/hs.all.gene.go.mat.RData")
 ##
 #####
